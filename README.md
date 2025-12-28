@@ -79,6 +79,7 @@ All messages follow a **common envelope**:
   "length": 17,
   "payload": { ... }
 }
+```
 
 | Type       | Description                      |
 | ---------- | -------------------------------- |
@@ -87,7 +88,7 @@ All messages follow a **common envelope**:
 | `punch`    | Hole punching coordination (WIP) |
 
 🧩 Example: Register Message
-
+```json
 {
   "version": 1,
   "header": {
@@ -99,3 +100,4 @@ All messages follow a **common envelope**:
     "id": "node-123"
   }
 }
+```

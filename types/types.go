@@ -1,10 +1,8 @@
 package types
 
-import "net"
-
 type Peer struct{
 	ID string `json:"id"`
-	Addr net.Addr `json:"addr"`
+	Addr string `json:"addr"`
 }
 
 type Peers struct{

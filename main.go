@@ -60,11 +60,11 @@ func handleSession(sess *quic.Conn) {
 			logger.Info(fmt.Sprintf("AcceptStream error (%s): %v\n", remoteAddr, err))
 			return
 		}
-		go handleStream(stream, remoteAddr)
+		go handleStream(stream, remoteAddr.String())
 	}
 }
 
-func handleStream(s *quic.Stream, addr net.Addr) {
+func handleStream(s *quic.Stream, addr string) {
 	defer s.Close()
 
 	// Simple single-read echo example; production should loop and frame messages
@@ -111,7 +111,7 @@ func handleStream(s *quic.Stream, addr net.Addr) {
 	_, _ = s.Write([]byte("pong: " + time.Now().Format(time.RFC3339)))
 }
 
-func handleRegister(payload []byte, addr net.Addr) error{
+func handleRegister(payload []byte, addr string) error{
 	logger.Info("register case")
 
 	var r types.RegisterPayload
@@ -162,7 +162,7 @@ func loadPeers(path string) (types.Peers, error) {
 }
 
 
-func savePeer(id string, addr net.Addr) error {
+func savePeer(id string, addr string) error {
 	path := "peers.json"
 
 	peers, err := loadPeers(path)

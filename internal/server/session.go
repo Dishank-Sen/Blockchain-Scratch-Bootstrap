@@ -112,7 +112,6 @@ func (s *Session) handleStream(st *quic.Stream) {
 		s.peerID = id
 		s.mu.Unlock()
 
-		logger.Info(fmt.Sprintf("peer registered: %s", id))
 		return
 	}
 

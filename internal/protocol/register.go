@@ -3,6 +3,7 @@ package protocol
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/internal/peers"
 	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/types"
@@ -21,13 +22,17 @@ func NewRegister(store *peers.Store) *Register{
 
 func (r *Register) Handler(ctx context.Context, payload []byte, addr string) (string, error){
 	var rp types.RegisterPayload
-	if err := json.Unmarshal(payload, &r); err != nil{
+	if err := json.Unmarshal(payload, &rp); err != nil{
 		return "", err
 	}
 
 	store := r.store
 	store.Upsert(rp.ID, addr)
+
 	
-	logger.Info("peer registered")
+	store.DebugPrintAll()
+	
+	logger.Info(fmt.Sprintf("peer registered: %s", rp.ID))
 	return rp.ID, nil
 }
+

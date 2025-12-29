@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/utils/logger"
 )
 
 type Store struct {
@@ -90,4 +92,22 @@ func (s *Store) Cleanup() error {
 	defer s.mu.Unlock()
 
 	return s.snap.Save(s.peers)
+}
+
+func (s *Store) DebugPrintAll() {
+	peers := s.GetAll()
+
+	if len(peers) == 0 {
+		logger.Debug("no peers in store")
+		return
+	}
+
+	for _, p := range peers {
+		logger.Debug(fmt.Sprintf(
+			"peer id=%s addr=%s last_seen=%d",
+			p.ID,
+			p.Addr,
+			p.LastSeen,
+		))
+	}
 }

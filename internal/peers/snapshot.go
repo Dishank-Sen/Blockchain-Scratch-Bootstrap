@@ -81,7 +81,7 @@ func (s *Snapshot) Save(peers map[string]Peer) error {
 		return err
 	}
 
-	tmp := s.Path + ".tmp"
+	tmp := s.Path 
 
 	snap := snapshotFile{Peers: peers}
 	data, err := json.MarshalIndent(snap, "", "  ")

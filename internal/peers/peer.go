@@ -1,9 +1,7 @@
 package peers
 
-import "time"
-
 type Peer struct {
-    ID        string
-    Addr      string
-    LastSeen  time.Time
+	ID       string `json:"id"`
+	Addr     string `json:"addr"`
+	LastSeen int64  `json:"last_seen"`
 }

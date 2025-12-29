@@ -1,24 +1,29 @@
 package logger
 
 import (
-	"context"
-	"fmt"
 	"log"
-	"os"
 )
 
-func Info(msg string){
-	log.Printf("Info : %s", msg)
+// ANSI color codes
+const (
+	red    = "\033[31m"
+	yellow = "\033[33m"
+	blue   = "\033[34m"
+	reset  = "\033[0m"
+)
+
+func Info(msg string) {
+	log.Printf("%sINFO%s : %s", blue, reset, msg)
 }
 
-func Error(ctx context.Context, cancel context.CancelFunc, msg string) {
-	fmt.Println("Error[CLI]:", msg)
+func Warn(msg string) {
+	log.Printf("%sWARN%s : %s", red, reset, msg)
+}
 
-	// trigger cancellation so all goroutines watching ctx.Done() exit safely
-	if cancel != nil {
-		cancel()
-	}
+func Error(msg string) {
+	log.Printf("%sERROR%s : %s", red, reset, msg)
+}
 
-	// let defers run in the caller, then exit
-	os.Exit(1)
+func Debug(msg string) {
+	log.Printf("%sDEBUG%s : %s", yellow, reset, msg)
 }

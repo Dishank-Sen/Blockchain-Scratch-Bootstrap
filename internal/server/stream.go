@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,79 +15,117 @@ import (
 	"github.com/quic-go/quic-go"
 )
 
-type Stream struct{
-	store *peers.Store
+const maxMessageSize = 1 << 20 // 1 MB
+
+type Stream struct {
+	store  *peers.Store
 	stream *quic.Stream
-	addr net.Addr
-	ctx context.Context
-	cancel context.CancelFunc
+	addr   net.Addr
+	ctx    context.Context
 }
 
-func NewStream(sessionCtx context.Context, store *peers.Store, stream *quic.Stream, addr net.Addr) *Stream{
-	streamCtx, streamCancel := context.WithCancel(sessionCtx)
-
+func NewStream(sessionCtx context.Context, store *peers.Store, stream *quic.Stream, addr net.Addr) *Stream {
 	return &Stream{
-		store: store,
+		store:  store,
 		stream: stream,
-		addr: addr,
-		ctx: streamCtx,
-		cancel: streamCancel,
+		addr:   addr,
+		ctx:    sessionCtx,
 	}
 }
 
-func (s *Stream) Handle(msg *types.StreamMessage) error{
-	defer s.cancel()
-
-	switch msg.Type{
-	case "register":
-		return fmt.Errorf("already registered")
-	case "punch":
-		handlePunch()
-	case "ping":
-		handlePing()
-	default:
-		handleDefault()
-	}
-	
-	return nil
-}
-
-func (s *Stream) HandleRegister(msg *types.StreamMessage) (string, error){
-	if _, ok := msg.Header["application/json"]; !ok {
-		return "", fmt.Errorf("not json")
-	}
-	
-	register := protocol.NewRegister(s.store)
-	id, err := register.Handler(s.ctx, msg.Payload, s.addr.String())
-	if err != nil{
-		return "", fmt.Errorf("error in registering: %v", err)
-	}
-	return id, nil
-}
+/* -------------------- READ -------------------- */
 
 func (s *Stream) ReadMessage() (*types.StreamMessage, error) {
-	data, err := io.ReadAll(s.stream)
-	if err != nil {
+	// Abort immediately if session is shutting down
+	select {
+	case <-s.ctx.Done():
+		return nil, s.ctx.Err()
+	default:
+	}
+
+	// 1️⃣ Read fixed-size length header (4 bytes)
+	var lenBuf [4]byte
+	if _, err := io.ReadFull(s.stream, lenBuf[:]); err != nil {
 		return nil, err
 	}
 
+	length := binary.BigEndian.Uint32(lenBuf[:])
+	if length == 0 || length > maxMessageSize {
+		return nil, fmt.Errorf("invalid message length: %d", length)
+	}
+
+	// 2️⃣ Read exactly `length` bytes
+	payload := make([]byte, length)
+	if _, err := io.ReadFull(s.stream, payload); err != nil {
+		return nil, err
+	}
+
+	// 3️⃣ Decode message
 	var msg types.StreamMessage
-	if err := json.Unmarshal(data, &msg); err != nil {
+	if err := json.Unmarshal(payload, &msg); err != nil {
 		return nil, err
 	}
 
 	return &msg, nil
 }
 
+/* -------------------- HANDLE -------------------- */
 
-func handlePunch(){
-	logger.Info("punch case")
+func (s *Stream) Handle(msg *types.StreamMessage) error {
+	// Abort if session is canceled
+	select {
+	case <-s.ctx.Done():
+		return s.ctx.Err()
+	default:
+	}
+
+	switch msg.Type {
+
+	case "register":
+		return fmt.Errorf("already registered")
+
+	case "ping":
+		return s.writePong()
+
+	case "punch":
+		logger.Info("punch received")
+		return nil
+
+	default:
+		logger.Info("unknown message type")
+		return nil
+	}
 }
 
-func handlePing(){
-	logger.Info("ping case")
+/* -------------------- REGISTER -------------------- */
+
+func (s *Stream) HandleRegister(msg *types.StreamMessage) (string, error) {
+	if _, ok := msg.Header["application/json"]; !ok {
+		return "", fmt.Errorf("invalid content type")
+	}
+
+	register := protocol.NewRegister(s.store)
+	id, err := register.Handler(s.ctx, msg.Payload, s.addr.String())
+	if err != nil {
+		return "", err
+	}
+
+	return id, nil
 }
 
-func handleDefault(){
-	logger.Info("default case")
-} 
+/* -------------------- WRITE HELPERS -------------------- */
+
+func (s *Stream) writePong() error {
+	resp := []byte("pong")
+
+	var lenBuf [4]byte
+	binary.BigEndian.PutUint32(lenBuf[:], uint32(len(resp)))
+
+	if _, err := s.stream.Write(lenBuf[:]); err != nil {
+		return err
+	}
+	if _, err := s.stream.Write(resp); err != nil {
+		return err
+	}
+	return nil
+}

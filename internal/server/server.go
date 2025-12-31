@@ -35,11 +35,14 @@ func NewServer(ctx context.Context, store *peers.Store) (*Server, error){
 		return nil, err
 	}
 
+	serverCtx, serverCancle := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+
 	server := &Server{
 		tlsConfig: tlsConfig,
 		quicConfig: quicConfig,
 		store: store,
-		ctx: ctx,
+		ctx: serverCtx,
+		cancel: serverCancle,
 	}
 
 	return server, nil
@@ -47,17 +50,6 @@ func NewServer(ctx context.Context, store *peers.Store) (*Server, error){
 
 func (s *Server) Start(addr string) error {
 	s.addr = addr
-
-	// OS signal handling INSIDE server
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		sig := <-sigCh
-		logger.Warn("received signal: " + sig.String())
-		s.cancel() // 🔑 trigger graceful shutdown
-	}()
-
 	return s.listen()
 }
 
@@ -67,19 +59,14 @@ func (s *Server) listen() error{
 			logger.Warn(fmt.Sprintf("cleanup failed: %v", err))
 		}
 	}()
-
-	serverCtx, serverCancel := context.WithCancel(s.ctx)
-	defer serverCancel()
+	defer s.cancel()
 
 	listener, err := quic.ListenAddr(s.addr, s.tlsConfig, s.quicConfig)
 	if err != nil{
 		return fmt.Errorf("failed to listen: %v", err)
 	}
 
-	
 	s.listener = listener
-	s.cancel = serverCancel
-	s.ctx = serverCtx
 
 	for {
 		sess, err := listener.Accept(s.ctx)

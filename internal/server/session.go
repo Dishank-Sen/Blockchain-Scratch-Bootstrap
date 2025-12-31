@@ -35,10 +35,9 @@ func NewSession(serverCtx context.Context, conn *quic.Conn, addr net.Addr, store
 
 // blocking function
 func (s *Session) Handle(){
-	defer s.cancel()
-	defer s.cleanup()
 	defer func() {
-		_ = s.conn.CloseWithError(0, "closing")
+		defer s.cleanup()
+		_ = s.conn.CloseWithError(0, "session closing")
 	}()
 		
 	remoteAddr := s.conn.RemoteAddr()
@@ -51,7 +50,7 @@ func (s *Session) Handle(){
 
 	// Accept streams in a loop
 	for {
-		stream, err := s.conn.AcceptStream(s.ctx)
+		stream, err := s.conn.AcceptStream(s.ctx)  // blocking line
 		if err != nil {
 			// AcceptStream returns non-nil err when session is closed
 			logger.Info(fmt.Sprintf("AcceptStream error (%s): %v\n", remoteAddr, err))
@@ -75,6 +74,12 @@ func (s *Session) cleanup() {
 func (s *Session) handleStream(st *quic.Stream) {
 	defer st.Close()
 
+	select {
+	case <-s.ctx.Done():
+		return
+	default:
+	}
+
 	stream := NewStream(s.ctx, s.store, st, s.addr)
 
 	msg, err := stream.ReadMessage()
@@ -84,17 +89,16 @@ func (s *Session) handleStream(st *quic.Stream) {
 	}
 
 	s.mu.Lock()
-	peerID := s.peerID
-	s.mu.Unlock()
+	defer s.mu.Unlock()
 
-	if peerID != "" && msg.Type == "register" {
+	if s.peerID != "" && msg.Type == "register" {
 		logger.Info("protocol violation: duplicate register")
 		s.cancel()
 		return
 	}
 
 	// --- AUTH GATE ---
-	if peerID == "" {
+	if s.peerID == "" {
 		if msg.Type != "register" {
 			logger.Info("protocol violation: first stream must be register")
 			s.cancel() // kill entire session

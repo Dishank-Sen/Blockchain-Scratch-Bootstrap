@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/internal/peers"
 	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/internal/server"
@@ -11,7 +14,7 @@ import (
 
 
 func main(){
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	port := ":4242"

@@ -29,7 +29,7 @@ func main(){
 	// 	cancel()
 	// }
 
-	server := server.NewServer()
+	server := server.NewServer(ctx)
 	logger.Info(fmt.Sprintf("quic server listening on port %s", port))
 
 	tlsConf, err := getTlsConfig()
@@ -47,7 +47,7 @@ func main(){
 	go handleRoutes(server)
 
 	// blocks on Listen if no error
-	if err := server.Listen(ctx, port, tlsConf, quicConf); err != nil{
+	if err := server.Listen(port, tlsConf, quicConf); err != nil{
 		logger.Error(fmt.Sprintf("server listening error: %v", err))
 		cancel()
 	}

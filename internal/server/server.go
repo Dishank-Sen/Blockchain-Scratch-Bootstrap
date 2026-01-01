@@ -4,16 +4,23 @@ import (
 	"context"
 	"crypto/tls"
 
+	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/utils/logger"
 	"github.com/quic-go/quic-go"
 )
 
 type Server struct {
 	router *Router
+	ctx context.Context
+	cancel context.CancelFunc
 }
 
-func NewServer() *Server {
+func NewServer(ctx context.Context) *Server {
+	svrCtx, svrCancel := context.WithCancel(ctx)
+
 	return &Server{
 		router: NewRouter(),
+		ctx: svrCtx,
+		cancel: svrCancel,
 	}
 }
 
@@ -25,17 +32,26 @@ func (s *Server) Post(path string, h HandlerFunc) {
 	s.router.Post(path, h)
 }
 
-func (s *Server) Listen(ctx context.Context, addr string, tlsCfg *tls.Config, quicConfig *quic.Config) error {
+func (s *Server) Listen(addr string, tlsCfg *tls.Config, quicConfig *quic.Config) error {
 	listener, err := quic.ListenAddr(addr, tlsCfg, quicConfig)
 	if err != nil {
 		return err
 	}
 
+	go func ()  {
+		<-s.ctx.Done()
+		logger.Info("server shutting down")
+		listener.Close()
+	}()
+
 	for {
-		conn, err := listener.Accept(ctx)
+		conn, err := listener.Accept(s.ctx)
 		if err != nil {
+			if s.ctx.Err() != nil{
+				return nil
+			}
 			return err
 		}
-		go s.handleSession(ctx, conn)
+		go s.handleSession(s.ctx, conn)
 	}
 }

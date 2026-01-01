@@ -16,5 +16,7 @@ func (s *Server) handleStream(ctx context.Context, stream *quic.Stream) {
 	}
 
 	resp := s.router.Dispatch(ctx, req)
-	_ = writeResponse(stream, resp)
+	if err = writeResponse(stream, resp); err != nil{
+		stream.Close()
+	}
 }

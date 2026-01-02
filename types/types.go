@@ -1,5 +1,7 @@
 package types
 
+import "net"
+
 type Peer struct{
 	ID string `json:"id"`
 	Addr string `json:"addr"`
@@ -14,6 +16,7 @@ type Request struct{
 	Method  string
 	Path    string
 	Headers map[string]string
+	Addr    net.Addr
 	Body    []byte
 }
 
@@ -22,8 +25,4 @@ type Response struct {
 	Message    string
 	Headers    map[string]string
 	Body       []byte
-}
-
-type RegisterPayload struct{
-	ID string `json:"id"`
 }

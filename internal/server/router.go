@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/types"
+	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/utils/logger"
 )
 
 type HandlerFunc func(ctx context.Context, req *types.Request) (*types.Response, error)
@@ -24,6 +25,7 @@ func NewRouter() *Router {
 }
 
 func (r *Router) Get(path string, h HandlerFunc) {
+	// logger.Debug(path)
 	r.routes[routeKey{"GET", path}] = h
 }
 
@@ -32,6 +34,8 @@ func (r *Router) Post(path string, h HandlerFunc) {
 }
 
 func (r *Router) Dispatch(ctx context.Context, req *types.Request) *types.Response {
+	// logger.Debug(req.Method)
+	// logger.Debug(req.Path)
 	h, ok := r.routes[routeKey{req.Method, req.Path}]
 	if !ok {
 		return &types.Response{
@@ -43,11 +47,8 @@ func (r *Router) Dispatch(ctx context.Context, req *types.Request) *types.Respon
 
 	resp, err := h(ctx, req)
 	if err != nil {
-		return &types.Response{
-			StatusCode: 500,
-			Message:    "Internal Error",
-			Body:       []byte(err.Error()),
-		}
+		logger.Error(err.Error())
+		return resp
 	}
 	return resp
 }

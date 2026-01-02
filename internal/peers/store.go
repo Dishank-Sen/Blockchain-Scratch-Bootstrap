@@ -14,12 +14,28 @@ type Store struct {
 	snap  *Snapshot
 }
 
+// ---- global store state ----
+
+var (
+	store   *Store
+	storeMu sync.Mutex
+)
+
 /*
-NewStore:
-- Loads peers from snapshot (crash recovery)
-- Never fails if snapshot is missing / empty / corrupt
+GetStore:
+- Returns existing store if already created
+- Otherwise creates a new store
+- Safe for concurrent callers
+- Retries creation if previous attempt failed
 */
-func NewStore(snapshotPath string) (*Store, error) {
+func GetStore(snapshotPath string) (*Store, error) {
+	storeMu.Lock()
+	defer storeMu.Unlock()
+
+	if store != nil {
+		return store, nil
+	}
+
 	snap := NewSnapshot(snapshotPath)
 
 	peers, err := snap.Load()
@@ -27,11 +43,14 @@ func NewStore(snapshotPath string) (*Store, error) {
 		return nil, err
 	}
 
-	return &Store{
+	store = &Store{
 		peers: peers,
 		snap:  snap,
-	}, nil
+	}
+
+	return store, nil
 }
+
 
 /*
 Upsert:
@@ -110,4 +129,16 @@ func (s *Store) DebugPrintAll() {
 			p.LastSeen,
 		))
 	}
+}
+
+func (s *Store) GetPeerIDByAddr(addr string) (string, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for id, peer := range s.peers {
+		if peer.Addr == addr {
+			return id, true
+		}
+	}
+	return "", false
 }

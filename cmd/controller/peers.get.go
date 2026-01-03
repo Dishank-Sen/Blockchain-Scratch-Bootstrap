@@ -13,7 +13,7 @@ type peersList struct {
 }
 
 func PeersController(ctx context.Context, req *types.Request) (*types.Response, error){
-	store, err := peers.GetStore("peers.json")
+	store, err := peers.GetStore()
 	if err != nil{
 		return handleErrorRes(err)
 	}

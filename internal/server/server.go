@@ -45,13 +45,17 @@ func (s *Server) Listen(addr string, tlsCfg *tls.Config, quicConfig *quic.Config
 	}()
 
 	for {
+		logger.Debug("waiting for session...")
 		conn, err := listener.Accept(s.ctx)
 		if err != nil {
+			logger.Debug("error at server.go - 50")
+			logger.Error(err.Error())
 			if s.ctx.Err() != nil{
 				return nil
 			}
 			return err
 		}
+		logger.Debug("session received")
 		go s.handleSession(s.ctx, conn)
 	}
 }

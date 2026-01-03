@@ -11,7 +11,6 @@ import (
 type Store struct {
 	mu    sync.Mutex
 	peers map[string]Peer
-	snap  *Snapshot
 }
 
 // ---- global store state ----
@@ -21,14 +20,7 @@ var (
 	storeMu sync.Mutex
 )
 
-/*
-GetStore:
-- Returns existing store if already created
-- Otherwise creates a new store
-- Safe for concurrent callers
-- Retries creation if previous attempt failed
-*/
-func GetStore(snapshotPath string) (*Store, error) {
+func GetStore() (*Store, error) {
 	storeMu.Lock()
 	defer storeMu.Unlock()
 
@@ -36,21 +28,11 @@ func GetStore(snapshotPath string) (*Store, error) {
 		return store, nil
 	}
 
-	snap := NewSnapshot(snapshotPath)
-
-	peers, err := snap.Load()
-	if err != nil {
-		return nil, err
+	s := &Store{
+		peers: make(map[string]Peer),
 	}
-
-	store = &Store{
-		peers: peers,
-		snap:  snap,
-	}
-
-	return store, nil
+	return s, nil
 }
-
 
 /*
 Upsert:
@@ -99,18 +81,6 @@ func (s *Store) GetAll() []Peer {
 		out = append(out, p)
 	}
 	return out
-}
-
-/*
-Cleanup:
-- Called on graceful shutdown
-- Persists in-memory state to peers.json
-*/
-func (s *Store) Cleanup() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return s.snap.Save(s.peers)
 }
 
 func (s *Store) DebugPrintAll() {

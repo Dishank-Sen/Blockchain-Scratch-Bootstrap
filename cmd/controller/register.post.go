@@ -18,7 +18,7 @@ func RegisterController(ctx context.Context, req *types.Request) (*types.Respons
 	logger.Debug(string(req.Body))
 	logger.Debug(req.Addr.String())
 
-	store, err := peers.GetStore("peers.json")
+	store, err := peers.GetStore()
 	if err != nil{
 		return handleErrorRes(err)
 	}

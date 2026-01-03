@@ -9,7 +9,7 @@ import (
 )
 
 type Store struct {
-	mu    sync.Mutex
+	mu    sync.RWMutex
 	peers map[string]Peer
 }
 
@@ -20,6 +20,8 @@ var (
 	storeMu sync.Mutex
 )
 
+// GetStore returns a singleton store instance.
+// This MUST always return the same store.
 func GetStore() (*Store, error) {
 	storeMu.Lock()
 	defer storeMu.Unlock()
@@ -28,10 +30,10 @@ func GetStore() (*Store, error) {
 		return store, nil
 	}
 
-	s := &Store{
+	store = &Store{
 		peers: make(map[string]Peer),
 	}
-	return s, nil
+	return store, nil
 }
 
 /*
@@ -70,11 +72,11 @@ func (s *Store) Remove(id string) error {
 /*
 GetAll:
 - Returns a snapshot copy (safe for readers)
-- Useful for bootstrap peer list responses
+- Used for peer list responses
 */
 func (s *Store) GetAll() []Peer {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	out := make([]Peer, 0, len(s.peers))
 	for _, p := range s.peers {
@@ -83,6 +85,7 @@ func (s *Store) GetAll() []Peer {
 	return out
 }
 
+// DebugPrintAll prints current store state (debug only)
 func (s *Store) DebugPrintAll() {
 	peers := s.GetAll()
 
@@ -101,9 +104,14 @@ func (s *Store) DebugPrintAll() {
 	}
 }
 
+/*
+GetPeerIDByAddr:
+- Used during connection cleanup
+- Note: addr is unstable across reconnects (design limitation)
+*/
 func (s *Store) GetPeerIDByAddr(addr string) (string, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	for id, peer := range s.peers {
 		if peer.Addr == addr {

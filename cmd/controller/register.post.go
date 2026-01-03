@@ -28,6 +28,7 @@ func RegisterController(ctx context.Context, req *types.Request) (*types.Respons
 		return handleErrorRes(err)
 	}
 	store.Upsert(rp.ID, req.Addr.String())
+	store.DebugPrintAll()
 
 	res := &types.Response{
 		StatusCode: 200,

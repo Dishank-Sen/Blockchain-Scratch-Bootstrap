@@ -13,7 +13,7 @@ import (
 
 func (s *Server) handleSession(ctx context.Context, conn *quic.Conn) {
 	go func ()  {
-		<-ctx.Done()
+		<-ctx.Done()  // when server context is cancelled
 		logger.Info("closing connection")
 		cleanupPeerEntry(conn.RemoteAddr())
 		conn.CloseWithError(0, "server shutdown")
@@ -21,11 +21,15 @@ func (s *Server) handleSession(ctx context.Context, conn *quic.Conn) {
 
 	addr := conn.RemoteAddr()
 	for {
+		logger.Debug("waiting for stream...")
 		stream, err := conn.AcceptStream(ctx)
 		if err != nil {
+			logger.Debug("error at session.go - 26")
+			logger.Error(err.Error())
 			handleConnClose(err, addr)
 			return
 		}
+		logger.Debug("stream received")
 		go s.handleStream(ctx, addr, stream)
 	}
 }

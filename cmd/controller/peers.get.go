@@ -3,8 +3,11 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+
 	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/internal/peers"
 	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/types"
+	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/utils/logger"
 )
 
 type peersList struct {
@@ -13,15 +16,19 @@ type peersList struct {
 }
 
 func PeersController(ctx context.Context, req *types.Request) (*types.Response, error){
+	logger.Debug("peer route")
 	store, err := peers.GetStore()
 	if err != nil{
 		return handleErrorRes(err)
 	}
 
+	logger.Debug("all peers - peers.get.go - 25")
+	store.DebugPrintAll()
+
 	peers := store.GetAll()
 	var p []peersList
 	for _, peer := range peers{
-		// logger.Debug(fmt.Sprintf("id: %s | ip: %s", peer.ID, peer.Addr))
+		logger.Debug(fmt.Sprintf("id: %s | ip: %s", peer.ID, peer.Addr))
 		p = append(p, peersList{
 			ID: peer.ID,
 			Addr: peer.Addr,

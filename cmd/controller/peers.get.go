@@ -26,7 +26,8 @@ func PeersController(ctx context.Context, req *types.Request) (*types.Response, 
 	store.DebugPrintAll()
 
 	peers := store.GetAll()
-	var p []peersList
+	p := []peersList{}
+
 	for _, peer := range peers{
 		logger.Debug(fmt.Sprintf("id: %s | ip: %s", peer.ID, peer.Addr))
 		p = append(p, peersList{

@@ -3,20 +3,25 @@ package main
 import (
 	"crypto/tls"
 	"path"
+
+	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/utils/logger"
 )
 
-func getTlsConfig() (*tls.Config, error){
+func getTlsConfig() *tls.Config{
 	certFilePath := path.Join("certificate", "server.crt")
 	keyFilePath := path.Join("certificate", "server.key")
 
 	cert, err := tls.LoadX509KeyPair(certFilePath, keyFilePath)
 	if err != nil{
-		return nil, err
+		logger.Debug("error in tls")
+		logger.Error(err.Error())
+		return nil
 	}
 
 	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true,
 		Certificates: []tls.Certificate{cert},
-		NextProtos:   []string{"quic-example-v1"},
+		NextProtos:   []string{"quicnode"},
 	}
-	return tlsConfig, nil
+	return tlsConfig
 }

@@ -11,6 +11,7 @@ import (
 type Store struct {
 	mu    sync.RWMutex
 	peers map[string]Peer
+	order []string
 }
 
 // ---- global store state ----
@@ -20,6 +21,9 @@ var (
 	storeMu sync.Mutex
 )
 
+const (
+	max = 100
+)
 // GetStore returns a singleton store instance.
 // This MUST always return the same store.
 func GetStore() (*Store, error) {
@@ -45,10 +49,22 @@ func (s *Store) Upsert(id string, addr string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// If new peer, track insertion order
+	if _, exists := s.peers[id]; !exists {
+		s.order = append(s.order, id)
+	}
+
 	s.peers[id] = Peer{
 		ID:       id,
 		Addr:     addr,
 		LastSeen: time.Now().Unix(),
+	}
+
+	// Enforce max size
+	if len(s.order) > max {
+		oldest := s.order[0]
+		s.order = s.order[1:]
+		delete(s.peers, oldest)
 	}
 }
 
@@ -66,28 +82,39 @@ func (s *Store) Remove(id string) error {
 	}
 
 	delete(s.peers, id)
+
+	// Remove from order slice
+	for i, pid := range s.order {
+		if pid == id {
+			s.order = append(s.order[:i], s.order[i+1:]...)
+			break
+		}
+	}
+
 	return nil
 }
 
+
 /*
 GetAll:
-- Returns a snapshot copy (safe for readers)
-- Used for peer list responses
+- Returns a recent peer list excluding the peer requested
 */
-func (s *Store) GetAll() []Peer {
+func (s *Store) GetAll(peerID string) []Peer {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	out := make([]Peer, 0, len(s.peers))
-	for _, p := range s.peers {
-		out = append(out, p)
+	for id, p := range s.peers {
+		if id != peerID{
+			out = append(out, p)
+		}
 	}
 	return out
 }
 
 // DebugPrintAll prints current store state (debug only)
 func (s *Store) DebugPrintAll() {
-	peers := s.GetAll()
+	peers := s.GetAll("")
 
 	if len(peers) == 0 {
 		logger.Debug("no peers in store")

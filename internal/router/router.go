@@ -18,6 +18,6 @@ func NewRouter(n *node.Node) *Router{
 func (r *Router) HandleRoutes(){
 	n := r.node
 	h := handler.NewHandler(n)
-	n.Handle("register", h.Connect)
+	n.Handle("connect", h.Connect)
 	n.Handle("peers", h.Peers)
 }

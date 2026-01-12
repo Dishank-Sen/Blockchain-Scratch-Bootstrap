@@ -20,6 +20,7 @@ func main(){
 	if err != nil{
 		logger.Error(err.Error())
 		cancel()
+		return
 	}
 	if err := n.Start(); err != nil{
 		logger.Error(err.Error())

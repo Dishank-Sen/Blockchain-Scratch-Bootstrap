@@ -6,12 +6,13 @@ import (
 	"time"
 
 	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/utils/logger"
+	"github.com/quic-go/quic-go"
 )
 
 type Store struct {
 	mu    sync.RWMutex
-	peers map[string]Peer
-	order []string
+	peers map[*quic.Conn]Peer
+	order []*quic.Conn
 }
 
 // ---- global store state ----
@@ -35,7 +36,7 @@ func GetStore() (*Store, error) {
 	}
 
 	store = &Store{
-		peers: make(map[string]Peer),
+		peers: make(map[*quic.Conn]Peer),
 	}
 	return store, nil
 }
@@ -45,19 +46,20 @@ Upsert:
 - Called when a peer successfully registers
 - Handles first connect and reconnect
 */
-func (s *Store) Upsert(id string, addr string) {
+func (s *Store) Upsert(id string, addr string, conn *quic.Conn) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	// If new peer, track insertion order
-	if _, exists := s.peers[id]; !exists {
-		s.order = append(s.order, id)
+	if _, exists := s.peers[conn]; !exists {
+		s.order = append(s.order, conn)
 	}
 
-	s.peers[id] = Peer{
+	s.peers[conn] = Peer{
 		ID:       id,
 		Addr:     addr,
 		LastSeen: time.Now().Unix(),
+		Status: "CONNECTED",
 	}
 
 	// Enforce max size
@@ -76,16 +78,26 @@ Remove:
 func (s *Store) Remove(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	var conn *quic.Conn
 
-	if _, ok := s.peers[id]; !ok {
+	for c, p := range s.peers{
+		if p.ID == id{
+			conn = c
+			break
+		}
+	}
+	if conn == nil{
+		return fmt.Errorf("no peer exist to remove")
+	}
+	if _, ok := s.peers[conn]; !ok {
 		return fmt.Errorf("no peer with id %s exists", id)
 	}
 
-	delete(s.peers, id)
+	delete(s.peers, conn)
 
 	// Remove from order slice
-	for i, pid := range s.order {
-		if pid == id {
+	for i, c := range s.order {
+		if c == conn {
 			s.order = append(s.order[:i], s.order[i+1:]...)
 			break
 		}
@@ -104,9 +116,9 @@ func (s *Store) GetAll(peerID string) []Peer {
 	defer s.mu.RUnlock()
 
 	out := make([]Peer, 0, len(s.peers))
-	for id, p := range s.peers {
-		if id != peerID{
-			out = append(out, p)
+	for _, peer := range s.peers {
+		if peer.ID != peerID{
+			out = append(out, peer)
 		}
 	}
 	return out
@@ -140,10 +152,34 @@ func (s *Store) GetPeerIDByAddr(addr string) (string, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	for id, peer := range s.peers {
+	for _, peer := range s.peers {
 		if peer.Addr == addr {
-			return id, true
+			return peer.ID, true
 		}
 	}
 	return "", false
+}
+
+func (s *Store) UpdateLastSeen(conn *quic.Conn) error{
+	updatedPeer, ok := s.peers[conn]
+	if !ok{
+		return fmt.Errorf("no such connection")
+	}
+	updatedPeer.LastSeen = time.Now().Unix()
+	s.peers[conn] = updatedPeer
+	return nil
+}
+
+func (s *Store) Cleanup(ttl time.Duration) {
+    now := time.Now()
+
+    s.mu.Lock()
+    defer s.mu.Unlock()
+
+    for conn, peer := range s.peers {
+        if now.Sub(time.Unix(peer.LastSeen, 0)) > ttl {
+            delete(s.peers, conn)
+			logger.Debug("peer deleted")
+        }
+    }
 }

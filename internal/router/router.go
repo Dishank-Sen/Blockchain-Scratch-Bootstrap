@@ -2,6 +2,7 @@ package router
 
 import (
 	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/internal/handler"
+	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/utils/logger"
 	"github.com/Dishank-Sen/quicnode/node"
 )
 
@@ -17,7 +18,11 @@ func NewRouter(n *node.Node) *Router{
 
 func (r *Router) HandleRoutes(){
 	n := r.node
-	h := handler.NewHandler(n)
+	h, err := handler.NewHandler(n)
+	if err != nil{
+		logger.Error(err.Error())
+	}
 	n.Handle("connect", h.Connect)
 	n.Handle("peers", h.Peers)
+	n.Handle("heartbeat", h.Heartbeat)
 }

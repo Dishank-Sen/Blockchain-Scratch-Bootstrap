@@ -2,7 +2,6 @@ package handler
 
 import (
 	"encoding/json"
-	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/internal/peers"
 	"github.com/Dishank-Sen/quicnode/types"
 )
 
@@ -16,10 +15,6 @@ type payload struct{
 }
 
 func (h *Handler) Peers(req *types.Request) *types.Response{
-	store, err := peers.GetStore()
-	if err != nil{
-		return h.handleErrorRes()
-	}
 	var p payload
 	if err := json.Unmarshal(req.Body, &p); err != nil{
 		return h.handleErrorRes()
@@ -27,7 +22,7 @@ func (h *Handler) Peers(req *types.Request) *types.Response{
 	
 	nodeID := p.ID
 	peerL := []peersList{}
-	peers := store.GetAll(nodeID)
+	peers := h.store.GetAll(nodeID)
 
 	for _, peer := range peers{
 		peerL = append(peerL, peersList{

@@ -8,7 +8,8 @@ import (
 
 func getQuicConfig() *quic.Config{
 	quicConf := &quic.Config{
-		MaxIdleTimeout: 60 * time.Minute,
+		MaxIdleTimeout: 30*time.Second,
+		KeepAlivePeriod: 10*time.Second,
 	}
 
 	return quicConf

@@ -183,3 +183,12 @@ func (s *Store) Cleanup(ttl time.Duration) {
         }
     }
 }
+
+func (s *Store) GetPeerConn(id string) (*quic.Conn, error){
+	for conn, peer := range s.peers{
+		if peer.ID == id{
+			return conn, nil
+		}
+	}
+	return nil, fmt.Errorf("no peer id exists")
+}

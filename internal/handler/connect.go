@@ -2,12 +2,19 @@ package handler
 
 import (
 	"encoding/json"
+
+	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/internal/peers"
 	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/utils/logger"
 	"github.com/Dishank-Sen/quicnode/types"
 )
 
 type ConnectPayload struct{
 	ID string `json:"id"`
+}
+
+type PeerInfo struct{
+	ID string `json:"id"`
+	Addr string `json:"addr"`
 }
 
 func (h *Handler) Connect(req *types.Request) *types.Response{
@@ -25,10 +32,43 @@ func (h *Handler) Connect(req *types.Request) *types.Response{
 		logger.Debug("sending error response")
 		return h.handleErrorRes()
 	}
+
+	// Dial to the connected peers
+	go h.dialPeer(peerList)
+
 	return &types.Response{
 		StatusCode: 200,
 		Message: "ok",
 		Headers: nil,
 		Body: byteData,
+	}
+}
+
+func (h *Handler) dialPeer(peersList []peers.Peer){
+	if len(peersList) == 0{
+		logger.Info("no peers to dial")
+		return
+	}
+	for _, peer := range peersList{
+		conn, err := h.store.GetPeerConn(peer.ID)
+		if err != nil{
+			logger.Error(err.Error())
+			continue
+		}
+		peerInfo := PeerInfo{
+			ID: peer.ID,
+			Addr: peer.Addr,
+		}
+		byteData, err := json.Marshal(peerInfo)
+		if err != nil{
+			logger.Error(err.Error())
+			continue
+		}
+		resp, err := h.node.DialConn(conn, "peer-info", nil, byteData)
+		if err != nil{
+			logger.Error(err.Error())
+			continue
+		}
+		logger.Info(string(resp.Body))
 	}
 }

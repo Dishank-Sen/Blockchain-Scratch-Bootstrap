@@ -64,7 +64,7 @@ func (h *Handler) dialPeer(peersList []peers.Peer){
 			logger.Error(err.Error())
 			continue
 		}
-		resp, err := h.node.DialConn(conn, "peer-info", nil, byteData)
+		resp, err := h.node.DialConn(conn, "accept-peers", nil, byteData)
 		if err != nil{
 			logger.Error(err.Error())
 			continue

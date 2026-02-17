@@ -3,7 +3,7 @@ module github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap
 go 1.25.0
 
 require (
-	github.com/Dishank-Sen/quicnode v0.0.5
+	github.com/Dishank-Sen/quicnode v0.0.6
 	github.com/quic-go/quic-go v0.58.0
 )
 

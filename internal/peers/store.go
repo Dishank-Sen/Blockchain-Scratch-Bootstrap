@@ -11,8 +11,8 @@ import (
 
 type Store struct {
 	mu    sync.RWMutex
-	peers map[*quic.Conn]Peer
-	order []*quic.Conn
+	peers map[string]*Peer // key = peer ID
+	order []string         // insertion order by peer ID
 }
 
 // ---- global store state ----
@@ -22,11 +22,9 @@ var (
 	storeMu sync.Mutex
 )
 
-const (
-	max = 100
-)
+const max = 100
+
 // GetStore returns a singleton store instance.
-// This MUST always return the same store.
 func GetStore() (*Store, error) {
 	storeMu.Lock()
 	defer storeMu.Unlock()
@@ -36,68 +34,55 @@ func GetStore() (*Store, error) {
 	}
 
 	store = &Store{
-		peers: make(map[*quic.Conn]Peer),
+		peers: make(map[string]*Peer),
 	}
 	return store, nil
 }
 
-/*
-Upsert:
-- Called when a peer successfully registers
-- Handles first connect and reconnect
-*/
+//
+// Upsert
+//
 func (s *Store) Upsert(id string, addr string, conn *quic.Conn) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	// If new peer, track insertion order
-	if _, exists := s.peers[conn]; !exists {
-		s.order = append(s.order, conn)
+	if _, exists := s.peers[id]; !exists {
+		s.order = append(s.order, id)
 	}
 
-	s.peers[conn] = Peer{
+	s.peers[id] = &Peer{
 		ID:       id,
 		Addr:     addr,
+		Conn:     conn,
 		LastSeen: time.Now().Unix(),
-		Status: "CONNECTED",
+		Status:   "CONNECTED",
 	}
 
 	// Enforce max size
 	if len(s.order) > max {
-		oldest := s.order[0]
+		oldestID := s.order[0]
 		s.order = s.order[1:]
-		delete(s.peers, oldest)
+		delete(s.peers, oldestID)
 	}
 }
 
-/*
-Remove:
-- Called when a session ends
-- Peer is considered offline
-*/
+//
+// Remove
+//
 func (s *Store) Remove(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	var conn *quic.Conn
 
-	for c, p := range s.peers{
-		if p.ID == id{
-			conn = c
-			break
-		}
-	}
-	if conn == nil{
-		return fmt.Errorf("no peer exist to remove")
-	}
-	if _, ok := s.peers[conn]; !ok {
+	if _, ok := s.peers[id]; !ok {
 		return fmt.Errorf("no peer with id %s exists", id)
 	}
 
-	delete(s.peers, conn)
+	delete(s.peers, id)
 
 	// Remove from order slice
-	for i, c := range s.order {
-		if c == conn {
+	for i, pid := range s.order {
+		if pid == id {
 			s.order = append(s.order[:i], s.order[i+1:]...)
 			break
 		}
@@ -106,34 +91,82 @@ func (s *Store) Remove(id string) error {
 	return nil
 }
 
-
-/*
-GetAll:
-- Returns a recent peer list excluding the peer requested
-*/
-func (s *Store) GetAll(peerID string) []Peer {
+//
+// GetAll
+//
+func (s *Store) GetAll(excludeID string) []Peer {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	out := make([]Peer, 0, len(s.peers))
-	for _, peer := range s.peers {
-		if peer.ID != peerID{
-			out = append(out, peer)
+	for id, peer := range s.peers {
+		if id != excludeID {
+			out = append(out, *peer)
 		}
 	}
 	return out
 }
 
-// DebugPrintAll prints current store state (debug only)
-func (s *Store) DebugPrintAll() {
-	peers := s.GetAll("")
+//
+// GetPeerConn
+//
+func (s *Store) GetPeerConn(id string) (*quic.Conn, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
-	if len(peers) == 0 {
+	peer, ok := s.peers[id]
+	if !ok {
+		return nil, fmt.Errorf("no peer id exists")
+	}
+	return peer.Conn, nil
+}
+
+//
+// UpdateLastSeen
+//
+func (s *Store) UpdateLastSeen(id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	peer, ok := s.peers[id]
+	if !ok {
+		return fmt.Errorf("no such peer")
+	}
+
+	peer.LastSeen = time.Now().Unix()
+	return nil
+}
+
+//
+// Cleanup
+//
+func (s *Store) Cleanup(ttl time.Duration) {
+	now := time.Now()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for id, peer := range s.peers {
+		if now.Sub(time.Unix(peer.LastSeen, 0)) > ttl {
+			delete(s.peers, id)
+			logger.Debug("peer deleted: " + id)
+		}
+	}
+}
+
+//
+// DebugPrintAll
+//
+func (s *Store) DebugPrintAll() {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if len(s.peers) == 0 {
 		logger.Debug("no peers in store")
 		return
 	}
 
-	for _, p := range peers {
+	for _, p := range s.peers {
 		logger.Debug(fmt.Sprintf(
 			"peer id=%s addr=%s last_seen=%d",
 			p.ID,
@@ -141,54 +174,4 @@ func (s *Store) DebugPrintAll() {
 			p.LastSeen,
 		))
 	}
-}
-
-/*
-GetPeerIDByAddr:
-- Used during connection cleanup
-- Note: addr is unstable across reconnects (design limitation)
-*/
-func (s *Store) GetPeerIDByAddr(addr string) (string, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	for _, peer := range s.peers {
-		if peer.Addr == addr {
-			return peer.ID, true
-		}
-	}
-	return "", false
-}
-
-func (s *Store) UpdateLastSeen(conn *quic.Conn) error{
-	updatedPeer, ok := s.peers[conn]
-	if !ok{
-		return fmt.Errorf("no such connection")
-	}
-	updatedPeer.LastSeen = time.Now().Unix()
-	s.peers[conn] = updatedPeer
-	return nil
-}
-
-func (s *Store) Cleanup(ttl time.Duration) {
-    now := time.Now()
-
-    s.mu.Lock()
-    defer s.mu.Unlock()
-
-    for conn, peer := range s.peers {
-        if now.Sub(time.Unix(peer.LastSeen, 0)) > ttl {
-            delete(s.peers, conn)
-			logger.Debug("peer deleted")
-        }
-    }
-}
-
-func (s *Store) GetPeerConn(id string) (*quic.Conn, error){
-	for conn, peer := range s.peers{
-		if peer.ID == id{
-			return conn, nil
-		}
-	}
-	return nil, fmt.Errorf("no peer id exists")
 }

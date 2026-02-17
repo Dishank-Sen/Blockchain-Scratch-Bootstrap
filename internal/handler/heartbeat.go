@@ -9,7 +9,7 @@ import (
 
 func (h *Handler) Heartbeat(req *types.Request) *types.Response{
 	logger.Info(fmt.Sprintf("heartbeat from %s", req.SourceAddr))
-	if err := h.store.UpdateLastSeen(req.Conn); err != nil{
+	if err := h.store.UpdateLastSeen(req.SourceAddr.String()); err != nil{
 		logger.Error(err.Error())
 	}
 	return &types.Response{

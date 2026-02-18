@@ -51,11 +51,11 @@ func (h *Handler) dialPeer(peersList []peers.Peer){
 	}
 	for _, peer := range peersList{
 		logger.Info("getting conn...")
-		conn, err := h.store.GetPeerConn(peer.ID)
-		if err != nil{
-			logger.Error(err.Error())
-			continue
-		}
+		// conn, err := h.store.GetPeerConn(peer.ID)
+		// if err != nil{
+		// 	logger.Error(err.Error())
+		// 	continue
+		// }
 		logger.Info("conn received...")
 		peerInfo := PeerInfo{
 			ID: peer.ID,
@@ -67,7 +67,7 @@ func (h *Handler) dialPeer(peersList []peers.Peer){
 			continue
 		}
 		logger.Info("dialing (accept-peers)...")
-		resp, err := h.node.DialConn(peerInfo.Addr, conn, "accept-peers", nil, byteData)
+		resp, err := h.node.Dial(peerInfo.Addr, "accept-peers", nil, byteData)
 		if err != nil{
 			logger.Error(err.Error())
 			continue

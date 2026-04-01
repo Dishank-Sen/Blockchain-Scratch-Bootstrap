@@ -24,14 +24,11 @@ jobs:
         run: |
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
             cd /Blockchain-Scratch-Bootstrap
+            git reset --hard origin/main
             git pull origin main
 
-            # Example for Node
-            npm install
-            pm2 restart app || pm2 start app.js
-
-            # Example for Go
-            # go build -o app
-            # sudo systemctl restart myapp
-
+            # restart system daemon
+            make build
+            sudo systemctl daemon-reload
+            sudo systemctl restart bootstrap-node
           EOF

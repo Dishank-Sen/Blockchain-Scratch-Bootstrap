@@ -36,7 +36,11 @@ func (h *Handler) Connect(ctx context.Context, req *types.Request) *types.Respon
 	}
 
 	// Dial to the connected peers
-	go h.dialPeer(peerList)
+	dialPayload := PeerInfo{
+		ID: rp.ID,
+		Addr: req.SourceAddr.String(),
+	}
+	go h.dialPeer(peerList, dialPayload)
 
 	return &types.Response{
 		StatusCode: 200,
@@ -46,23 +50,19 @@ func (h *Handler) Connect(ctx context.Context, req *types.Request) *types.Respon
 	}
 }
 
-func (h *Handler) dialPeer(peersList []peers.Peer){
+func (h *Handler) dialPeer(peersList []peers.Peer, payload PeerInfo){
 	if len(peersList) == 0{
 		logger.Info("no peers to dial")
 		return
 	}
 	for _, peer := range peersList{
-		peerInfo := PeerInfo{
-			ID: peer.ID,
-			Addr: peer.Addr,
-		}
-		byteData, err := json.Marshal(peerInfo)
+		byteData, err := json.Marshal(payload)
 		if err != nil{
 			logger.Error(err.Error())
 			continue
 		}
 		logger.Info("dialing (accept-peers)...")
-		resp, err := h.node.Dial(peerInfo.Addr, "accept-peers", nil, byteData)
+		resp, err := h.node.Dial(peer.Addr, "accept-peers", nil, byteData)
 		if err != nil{
 			logger.Error(err.Error())
 			continue

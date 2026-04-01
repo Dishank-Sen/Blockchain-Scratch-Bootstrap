@@ -30,5 +30,6 @@ func main(){
 	logger.Info("node started")
 	router := router.NewRouter(n)
 	go router.HandleRoutes()
+	go router.HandleEvents()
 	<-ctx.Done()
 }

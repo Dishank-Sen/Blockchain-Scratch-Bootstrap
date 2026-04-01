@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/utils/logger"
+	"github.com/Dishank-Sen/quicnode/types"
 	"github.com/quic-go/quic-go"
 )
 
@@ -13,6 +14,10 @@ type Store struct {
 	mu    sync.RWMutex
 	peers map[string]*Peer // key = peer ID
 	order []string         // insertion order by peer ID
+
+	// NEW: mappings
+	connToPeer map[types.ConnID]string // ConnID -> PeerID
+	peerToConn map[string]types.ConnID // PeerID -> ConnID
 }
 
 // ---- global store state ----
@@ -34,7 +39,9 @@ func GetStore() (*Store, error) {
 	}
 
 	store = &Store{
-		peers: make(map[string]*Peer),
+		peers:      make(map[string]*Peer),
+		connToPeer: make(map[types.ConnID]string),
+		peerToConn: make(map[string]types.ConnID),
 	}
 	return store, nil
 }
@@ -42,7 +49,7 @@ func GetStore() (*Store, error) {
 //
 // Upsert
 //
-func (s *Store) Upsert(id string, addr string, conn *quic.Conn) {
+func (s *Store) Upsert(id string, addr string, conn *quic.Conn, connID types.ConnID) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -59,16 +66,27 @@ func (s *Store) Upsert(id string, addr string, conn *quic.Conn) {
 		Status:   "CONNECTED",
 	}
 
+	// NEW: maintain mappings
+	s.connToPeer[connID] = id
+	s.peerToConn[id] = connID
+
 	// Enforce max size
 	if len(s.order) > max {
 		oldestID := s.order[0]
 		s.order = s.order[1:]
+
+		// cleanup mappings
+		if connID, ok := s.peerToConn[oldestID]; ok {
+			delete(s.connToPeer, connID)
+			delete(s.peerToConn, oldestID)
+		}
+
 		delete(s.peers, oldestID)
 	}
 }
 
 //
-// Remove
+// Remove (by PeerID)
 //
 func (s *Store) Remove(id string) error {
 	s.mu.Lock()
@@ -78,11 +96,44 @@ func (s *Store) Remove(id string) error {
 		return fmt.Errorf("no peer with id %s exists", id)
 	}
 
+	// cleanup mappings
+	if connID, ok := s.peerToConn[id]; ok {
+		delete(s.connToPeer, connID)
+		delete(s.peerToConn, id)
+	}
+
 	delete(s.peers, id)
 
 	// Remove from order slice
 	for i, pid := range s.order {
 		if pid == id {
+			s.order = append(s.order[:i], s.order[i+1:]...)
+			break
+		}
+	}
+
+	return nil
+}
+
+//
+// NEW: Remove by ConnID (IMPORTANT for your use case)
+//
+func (s *Store) RemoveByConnID(connID types.ConnID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	peerID, ok := s.connToPeer[connID]
+	if !ok {
+		return fmt.Errorf("no peer for connID %s", connID)
+	}
+
+	delete(s.connToPeer, connID)
+	delete(s.peerToConn, peerID)
+	delete(s.peers, peerID)
+
+	// remove from order
+	for i, pid := range s.order {
+		if pid == peerID {
 			s.order = append(s.order[:i], s.order[i+1:]...)
 			break
 		}
@@ -122,6 +173,20 @@ func (s *Store) GetPeerConn(id string) (*quic.Conn, error) {
 }
 
 //
+// NEW: Get PeerID from ConnID
+//
+func (s *Store) GetPeerByConnID(connID types.ConnID) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	id, ok := s.connToPeer[connID]
+	if !ok {
+		return "", fmt.Errorf("no peer for connID")
+	}
+	return id, nil
+}
+
+//
 // UpdateLastSeen
 //
 func (s *Store) UpdateLastSeen(id string) error {
@@ -148,6 +213,13 @@ func (s *Store) Cleanup(ttl time.Duration) {
 
 	for id, peer := range s.peers {
 		if now.Sub(time.Unix(peer.LastSeen, 0)) > ttl {
+
+			// cleanup mappings
+			if connID, ok := s.peerToConn[id]; ok {
+				delete(s.connToPeer, connID)
+				delete(s.peerToConn, id)
+			}
+
 			delete(s.peers, id)
 			logger.Debug("peer deleted: " + id)
 		}

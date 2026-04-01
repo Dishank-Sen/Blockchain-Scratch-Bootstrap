@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+
 	"github.com/Dishank-Sen/quicnode/types"
 )
 
@@ -14,7 +16,7 @@ type payload struct{
 	ID string `json:"id"`
 }
 
-func (h *Handler) Peers(req *types.Request) *types.Response{
+func (h *Handler) Peers(ctx context.Context, req *types.Request) *types.Response{
 	var p payload
 	if err := json.Unmarshal(req.Body, &p); err != nil{
 		return h.handleErrorRes()

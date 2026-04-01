@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -12,7 +13,7 @@ type heartbeatPayload struct {
 	ID string `json:"id"`
 }
 
-func (h *Handler) Heartbeat(req *types.Request) *types.Response {
+func (h *Handler) Heartbeat(ctx context.Context, req *types.Request) *types.Response {
 	var hb heartbeatPayload
 
 	if err := json.Unmarshal(req.Body, &hb); err != nil {

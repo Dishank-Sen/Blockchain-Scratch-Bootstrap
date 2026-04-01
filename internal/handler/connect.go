@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/internal/peers"
@@ -17,14 +18,15 @@ type PeerInfo struct{
 	Addr string `json:"addr"`
 }
 
-func (h *Handler) Connect(req *types.Request) *types.Response{
+func (h *Handler) Connect(ctx context.Context, req *types.Request) *types.Response{
 	conn := req.Conn
 	var rp ConnectPayload
 	if err := json.Unmarshal(req.Body, &rp); err != nil{
 		return h.handleErrorRes()
 	}
 
-	h.store.Upsert(rp.ID, req.SourceAddr.String(), conn)
+	connID := ctx.Value("connID").(types.ConnID)
+	h.store.Upsert(rp.ID, req.SourceAddr.String(), conn, connID)
 	peerList := h.store.GetAll(rp.ID)
 
 	byteData, err := json.Marshal(peerList)
@@ -50,13 +52,6 @@ func (h *Handler) dialPeer(peersList []peers.Peer){
 		return
 	}
 	for _, peer := range peersList{
-		logger.Info("getting conn...")
-		// conn, err := h.store.GetPeerConn(peer.ID)
-		// if err != nil{
-		// 	logger.Error(err.Error())
-		// 	continue
-		// }
-		logger.Info("conn received...")
 		peerInfo := PeerInfo{
 			ID: peer.ID,
 			Addr: peer.Addr,

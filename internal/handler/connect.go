@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/internal/peers"
 	"github.com/Dishank-Sen/Blockchain-Scratch-Bootstrap/utils/logger"
@@ -62,6 +63,7 @@ func (h *Handler) dialPeer(peersList []peers.Peer, payload PeerInfo){
 			continue
 		}
 		logger.Info("dialing (accept-peers)...")
+		logger.Debug(fmt.Sprintf("dialing adderss: %s", peer.Addr))
 		resp, err := h.node.Dial(peer.Addr, "accept-peers", nil, byteData)
 		if err != nil{
 			logger.Error(err.Error())
